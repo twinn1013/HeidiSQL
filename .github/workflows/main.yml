@@ -1,0 +1,10 @@
+name: Lazarus
+
+on:
+  workflow_dispatch:
+
+jobs:
+  stub:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Stub on master - the real workflow lives on the feature branches"
