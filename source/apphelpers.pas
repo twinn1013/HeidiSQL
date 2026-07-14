@@ -350,6 +350,8 @@ type
   function FormatNumber( int: Int64; Thousands: Boolean=True): String; Overload;
   function FormatNumber( flt: Double; decimals: Integer = 0; Thousands: Boolean=True): String; Overload;
   procedure ShellExec(cmd: String; path: String=''; params: String=''; RunHidden: Boolean=False);
+  // Focus a control only when it and its parent form can take the focus, never raising EInvalidOperation
+  procedure SetFocusSafe(Control: TWinControl);
   function getFirstWord(text: String; MustStartWithWordChar: Boolean=True): String;
   function RegExprGetMatch(Expression: String; var Input: String; ReturnMatchNum: Integer; DeleteFromSource, CaseInsensitive: Boolean): String; Overload;
   function RegExprGetMatch(Expression: String; Input: String; ReturnMatchNum: Integer): String; Overload;
@@ -1090,6 +1092,17 @@ begin
     Msg := Msg + ' params: "'+params+'"';
   MainForm.LogSQL(Msg, lcDebug);
   Process.RunCommandInDir(path, cmd, [params], ProcessResult, [], ShowOptions);
+end;
+
+
+procedure SetFocusSafe(Control: TWinControl);
+begin
+  // CanSetFocus - unlike CanFocus - also checks the parent form itself, so this
+  // never runs into the "[TCustomForm.SetFocus] ... Can not focus" exception
+  // which TCustomForm.SetFocus raises on a hidden or disabled form, e.g. while
+  // a modal form is closing. See issue 2433.
+  if (Control <> nil) and Control.CanSetFocus then
+    Control.SetFocus;
 end;
 
 
