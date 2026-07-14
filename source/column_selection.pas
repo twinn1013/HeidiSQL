@@ -35,6 +35,7 @@ type
     { Private declarations }
     FCheckedColumns: TStringList;
     FLastFilter: String;
+    FSelectAllUpdating: Boolean;
   public
     { Public declarations }
   end;
@@ -118,9 +119,11 @@ var
   cb: TCheckBox;
   i: Integer;
 begin
-  // Avoid executing when checkbox was toggled by code (see proc below)
+  // Avoid executing when checkbox was toggled by code (see proc below).
+  // Do not use cb.Focused for that: on macOS a click does not focus a
+  // checkbox, so the click event would do nothing there. See issue #2506.
   cb := Sender as TCheckBox;
-  if cb.Focused then begin
+  if not FSelectAllUpdating then begin
     chklistColumns.CheckAll(cb.State);
     for i:=0 to chklistColumns.Items.Count-1 do begin
       if (FCheckedColumns.IndexOf(chklistColumns.Items[i]) = -1) and (cb.State = cbChecked) then
@@ -175,12 +178,17 @@ begin
     else
       AllSelected := False;
   end;
-  if NoneSelected then
-    chkSelectAll.State := cbUnchecked
-  else if AllSelected then
-    chkSelectAll.State := cbChecked
-  else
-    chkSelectAll.State := cbGrayed;
+  FSelectAllUpdating := True;
+  try
+    if NoneSelected then
+      chkSelectAll.State := cbUnchecked
+    else if AllSelected then
+      chkSelectAll.State := cbChecked
+    else
+      chkSelectAll.State := cbGrayed;
+  finally
+    FSelectAllUpdating := False;
+  end;
 end;
 
 
@@ -191,19 +199,24 @@ procedure TfrmColumnSelection.PopulateList(Sender: TObject);
 var
   i: Integer;
   Col: String;
+  Cols: TStringList;
 begin
-  // Setting Sorted to false doesn't resort anything in the list.
-  // So we have to add all items again in original order
-  chklistColumns.Sorted := chkSort.Checked;
-  // Add all fieldnames again
-  chklistColumns.Items.BeginUpdate;
-  chklistColumns.Clear;
+  // Sort the column names ourselves, instead of using TCheckListBox.Sorted, which
+  // is not supported on all widgetsets (e.g. does nothing on Cocoa). See issue #2506.
+  Cols := TStringList.Create;
   for i:=0 to Mainform.SelectedTableColumns.Count-1 do begin
     Col := Mainform.SelectedTableColumns[i].Name;
     if IsEmpty(editFilter.Text) or (Pos(LowerCase(editFilter.Text), LowerCase(Col)) > 0) then
-      chklistColumns.Items.Add(Col);
+      Cols.Add(Col);
   end;
+  if chkSort.Checked then
+    Cols.Sort;
+  // Add all fieldnames again
+  chklistColumns.Items.BeginUpdate;
+  chklistColumns.Clear;
+  chklistColumns.Items.Assign(Cols);
   chklistColumns.Items.EndUpdate;
+  Cols.Free;
 
   // check those which remembered as checked
   for i:=0 to chklistColumns.Items.Count-1 do begin
