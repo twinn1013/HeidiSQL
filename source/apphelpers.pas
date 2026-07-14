@@ -529,16 +529,29 @@ end;
   @return string
 }
 function StrEllipsis(const S: String; MaxLen: Integer; FromLeft: Boolean=True): String;
+var
+  CutPos: PtrInt;
 begin
+  // Truncate on UTF-8 codepoint boundaries, not raw bytes. A byte-wise cut (SetLength/Copy)
+  // can split a multi-byte character and produce invalid UTF-8. On the Cocoa widgetset such a
+  // string converts to a nil NSString, which crashes -[NSMenuItem initWithTitle:] when the
+  // result is used as a menu caption (e.g. quick filter items).
   Result := S;
+  // A string with at most MaxLen bytes cannot exceed MaxLen codepoints
   if Length(Result) <= MaxLen then
     Exit;
   if FromLeft then begin
-    SetLength(Result, MaxLen);
+    // Scan only the first MaxLen codepoints, not the whole string - grid cells with
+    // large contents run through here on every repaint
+    CutPos := UTF8CodepointToByteIndex(PChar(Result), Length(Result), MaxLen);
+    if (CutPos < 0) or (CutPos >= Length(Result)) then
+      Exit; // String has no more than MaxLen codepoints
+    SetLength(Result, CutPos);
     Result := Result + '…';
   end else begin
-    Result := Copy(Result, Length(Result)-MaxLen, Length(Result));
-    Result := '…' + Result;
+    if UTF8Length(Result) <= MaxLen then
+      Exit;
+    Result := '…' + UTF8Copy(Result, UTF8Length(Result) - MaxLen + 1, MaxLen);
   end;
 end;
 
