@@ -382,6 +382,12 @@ procedure Tconnform.FormCloseQuery(Sender: TObject; var CanClose: Boolean);
 begin
   // Modifications? Ask if they should be saved.
   FinalizeModifications(CanClose);
+  // End a pending inline rename while the form is still visible and active.
+  // Otherwise the edit link tries to restore the focus during form teardown,
+  // which raises "[TCustomForm.SetFocus] ... Can not focus" on macOS.
+  // See issue #2433.
+  if CanClose and ListSessions.IsEditing then
+    ListSessions.CancelEditNode;
 end;
 
 
@@ -418,7 +424,7 @@ begin
     Node := ListSessions.GetNext(Node);
   end;
 
-  ListSessions.SetFocus;
+  SetFocusSafe(ListSessions);
   // Reactivate statistics
   TimerStatistics.Enabled := True;
   TimerStatistics.OnTimer(Sender);
@@ -660,7 +666,7 @@ end;
 
 procedure Tconnform.actFilterExecute(Sender: TObject);
 begin
-  editSearch.SetFocus;
+  SetFocusSafe(editSearch);
 end;
 
 procedure Tconnform.btnDeleteClick(Sender: TObject);
@@ -682,7 +688,7 @@ begin
       FocusNode := Node.Parent;
     ListSessions.DeleteNode(Node);
     SelectNode(ListSessions, FocusNode);
-    ListSessions.SetFocus;
+    SetFocusSafe(ListSessions);
   end;
 end;
 

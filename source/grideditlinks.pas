@@ -279,6 +279,11 @@ var
   NewNode: PVirtualNode;
   DoPrev: Boolean;
 begin
+  // Drop end/cancel calls which are still queued via DoEndEdit/DoCancelEdit.
+  // They would fire after this link - and possibly the tree or its form - is
+  // already destroyed, e.g. when the session manager is cancelled while a
+  // session rename is active. See issue #2433.
+  Application.RemoveAsyncCalls(Self);
   ActiveGridEditor := nil;
   if Assigned(FMainControl) then begin
     FMainControl.WindowProc := FOldWindowProc;
@@ -364,8 +369,7 @@ begin
   if Result then begin
     FStopping := True;
     FTree.CancelEditNode;
-    if FTree.CanFocus then
-      FTree.SetFocus;
+    SetFocusSafe(FTree);
   end;
 end;
 
@@ -376,8 +380,8 @@ begin
   FStopping := True;
   if FModified and FAllowEdit then
     FTree.Text[FNode, FColumn] := NewText;
-  if FTree.CanFocus and (FLastKeyDown <> VK_TAB) then
-    FTree.SetFocus;
+  if FLastKeyDown <> VK_TAB then
+    SetFocusSafe(FTree);
 end;
 
 {procedure TBaseGridEditorLink.TempWindowProc(var Message: TMessage);
@@ -605,7 +609,7 @@ begin
   Result := inherited BeginEdit;
   if Result then begin
     FPanel.Show;
-    FMaskEdit.SetFocus;
+    SetFocusSafe(FMaskEdit);
     // Focus very last segment of date
     FMaskEdit.SelStart := AppSettings.ReadInt(asDateTimeEditorCursorPos, IntToStr(Integer(FTableColumn.DataType.Category)));
     FMaskEdit.SelLength := 1;
@@ -957,7 +961,7 @@ begin
   Result := inherited BeginEdit;
   if Result then begin
     FCombo.Show;
-    FCombo.SetFocus;
+    SetFocusSafe(FCombo);
   end;
 end;
 
@@ -1074,7 +1078,7 @@ begin
   Result := inherited BeginEdit;
   if Result then begin
     FPanel.Show;
-    FCheckList.SetFocus;
+    SetFocusSafe(FCheckList);
   end;
 end;
 
@@ -1228,7 +1232,7 @@ begin
       ButtonClick(FTree)
     else begin
       FPanel.Show;
-      FEdit.SetFocus;
+      SetFocusSafe(FEdit);
     end;
   end;
 end;
@@ -1542,11 +1546,11 @@ begin
   Result := not FStopping;
   if Result then begin
     FPanel.Show;
-    if FRadioNothing.Checked then FRadioNothing.SetFocus
-    else if FRadioText.Checked then FTextEdit.SetFocus
-    else if FRadioNull.Checked then FRadioNull.SetFocus
-    else if FRadioExpression.Checked then FExpressionEdit.SetFocus
-    else if FRadioAutoInc.Checked then FRadioAutoInc.SetFocus;
+    if FRadioNothing.Checked then SetFocusSafe(FRadioNothing)
+    else if FRadioText.Checked then SetFocusSafe(FTextEdit)
+    else if FRadioNull.Checked then SetFocusSafe(FRadioNull)
+    else if FRadioExpression.Checked then SetFocusSafe(FExpressionEdit)
+    else if FRadioAutoInc.Checked then SetFocusSafe(FRadioAutoInc);
   end;
 end;
 
@@ -1588,8 +1592,7 @@ begin
     Col.OnUpdateText := FOnUpdateEdit.Text;
 
     FTree.Text[FNode, FColumn] := Col.DefaultText;
-    if FTree.CanFocus then
-      FTree.SetFocus;
+    SetFocusSafe(FTree);
   end;
 end;
 
@@ -1600,15 +1603,13 @@ begin
     FTextEdit.Color := clBtnFace
   else begin
     FTextEdit.Color := clWindow;
-    if FTextEdit.CanFocus then
-      FTextEdit.SetFocus;
+    SetFocusSafe(FTextEdit);
   end;
   if not FRadioExpression.Checked then
     FExpressionEdit.Color := clBtnFace
   else begin
     FExpressionEdit.Color := clWindow;
-    if FExpressionEdit.CanFocus then
-      FExpressionEdit.SetFocus;
+    SetFocusSafe(FExpressionEdit);
   end;
   FModified := True;
 end;
@@ -1765,7 +1766,7 @@ begin
   Result := inherited BeginEdit;
   if Result then begin
     FTreeSelect.Show;
-    FTreeSelect.SetFocus;
+    SetFocusSafe(FTreeSelect);
   end;
 end;
 
