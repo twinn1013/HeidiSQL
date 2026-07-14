@@ -13448,6 +13448,21 @@ var
   KeyStroke: TSynEditKeyStroke;
   Attri: TSynHighlighterAttributes;
   Shortcut1, Shortcut2: TShortcut;
+
+  {$IFDEF DARWIN}
+  procedure AddMetaKeystroke(Command: TSynEditorCommand; Key: Word; Shift: TShiftState);
+  var
+    NewStroke: TSynEditKeyStroke;
+  begin
+    // Don't touch keys which are already taken, e.g. by a user customization
+    if BaseEditor.Keystrokes.FindKeycode(Key, Shift) >= 0 then
+      Exit;
+    NewStroke := BaseEditor.Keystrokes.Add;
+    NewStroke.Command := Command;
+    NewStroke.Key := Key;
+    NewStroke.Shift := Shift;
+  end;
+  {$ENDIF}
 begin
   // Setup all known TSynMemo's
   // This version includes global settings for keyboard shortcut, highlighting and completion proposal
@@ -13504,6 +13519,18 @@ begin
       end;
     end;
   end;
+  {$IFDEF DARWIN}
+  // SynEdit's default keystrokes only cover Ctrl+C/X/V etc., while macOS users
+  // press Cmd (ssMeta) for clipboard and undo operations. Without these extra
+  // keystrokes, copy/paste/cut don't work in the query and filter editors.
+  // See issue #2369.
+  AddMetaKeystroke(ecCopy, VK_C, [ssMeta]);
+  AddMetaKeystroke(ecCut, VK_X, [ssMeta]);
+  AddMetaKeystroke(ecPaste, VK_V, [ssMeta]);
+  AddMetaKeystroke(ecSelectAll, VK_A, [ssMeta]);
+  AddMetaKeystroke(ecUndo, VK_Z, [ssMeta]);
+  AddMetaKeystroke(ecRedo, VK_Z, [ssShift, ssMeta]);
+  {$ENDIF}
   // Apply events and options to all known editors
   for i:=0 to Editors.Count-1 do begin
     SetupSynEditor(Editors[i] as TSynMemo);
