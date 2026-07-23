@@ -225,6 +225,7 @@ procedure TfrmColumnSelection.FormDestroy(Sender: TObject);
 begin
   AppSettings.WriteInt(asColumnSelectorWidth, ScaleFormToDesign(Width));
   AppSettings.WriteInt(asColumnSelectorHeight, ScaleFormToDesign(Height));
+  FCheckedColumns.Free;
 end;
 
 
@@ -243,8 +244,9 @@ end;
 procedure TfrmColumnSelection.FormClose(Sender: TObject; var Action:
     TCloseAction);
 begin
+  // FormClose can run twice when the form is closed by OK and afterwards
+  // deactivated - free FCheckedColumns in FormDestroy only. See issue 2554.
   Action := caFree;
-  FCheckedColumns.Free;
 end;
 
 
