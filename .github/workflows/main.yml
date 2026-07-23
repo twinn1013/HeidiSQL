@@ -11,12 +11,14 @@ permissions:
 on:
 
   push:
-    branches: [ lazarus ]
+    branches: [ lazarus, "claude/**" ]
     tags: [ "*" ]
     paths-ignore: [ "README.md", "LICENSE", "CHANGELOG.md", ".github/cliff.toml" ]
 
   pull_request:
     branches: [ lazarus ]
+
+  workflow_dispatch:
 
 jobs:
 
@@ -27,7 +29,7 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                operating-system: [windows-latest, ubuntu-latest, macos-latest]
+                operating-system: [windows-latest, ubuntu-latest, macos-15]
                 lazarus-versions: ["stable"]
 
         steps:
@@ -120,15 +122,59 @@ jobs:
             path: out/qt6/heidisql
 
         - name: Build HeidiSQL (macOS)
-          if: ${{ matrix.operating-system == 'macos-latest' }}
-          run: make build-macos
+          if: ${{ matrix.operating-system == 'macos-15' }}
+          run: |
+            # Force native arm64: FPC otherwise defaults to x86_64, which makes the
+            # binary run under Rosetta and fail to dlopen the arm64 brew dylibs
+            # Use the fpc driver so --cpu=aarch64 dispatches to ppca64 (the default
+            # lazbuild compiler is the target-specific ppcx64, which rejects -Paarch64)
+            lazbuild -B --bm=Release --cpu=aarch64 --compiler="$(command -v fpc)" heidisql.lpi
+            mkdir -p out/macos
+            mv out/heidisql out/macos/heidisql
+            file out/macos/heidisql
 
         - name: Upload binaries macOS
-          if: ${{ matrix.operating-system == 'macos-latest' && matrix.lazarus-versions == 'stable' }}
+          if: ${{ matrix.operating-system == 'macos-15' && matrix.lazarus-versions == 'stable' }}
           uses: actions/upload-artifact@v4
           with:
             name: ${{ matrix.operating-system }}
             path: out/macos/heidisql
+
+        - name: Create ad-hoc signed app bundle (macOS)
+          if: ${{ matrix.operating-system == 'macos-15' }}
+          run: |
+            cp out/macos/heidisql out/heidisql
+            # No Developer ID cert on CI: ad-hoc sign, no hardened runtime/timestamp, skip openssl@1.1 (removed from brew)
+            sed -i '' 's/^CODESIGN_IDENTITY=.*/CODESIGN_IDENTITY="-"/' create-macos-app.sh
+            sed -i '' 's/--options runtime --timestamp //g' create-macos-app.sh
+            sed -i '' 's|^brew list openssl@1.1.*|true|' create-macos-app.sh
+            ./create-macos-app.sh
+            echo "=== Architecture check ==="
+            file heidisql.app/Contents/MacOS/heidisql
+            lipo -info heidisql.app/Contents/Frameworks/*.dylib | head -30 || true
+            ditto -c -k --keepParent heidisql.app heidisql-app-adhoc.zip
+
+        - name: Upload app bundle (macOS)
+          if: ${{ matrix.operating-system == 'macos-15' && matrix.lazarus-versions == 'stable' }}
+          uses: actions/upload-artifact@v4
+          with:
+            name: macos-app-bundle
+            path: heidisql-app-adhoc.zip
+
+    sync-lazarus:
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        runs-on: ubuntu-latest
+        steps:
+        - name: Checkout fork lazarus branch
+          uses: actions/checkout@v4
+          with:
+            ref: lazarus
+            fetch-depth: 0
+        - name: Fast-forward fork lazarus to upstream
+          run: |
+            git remote add upstream https://github.com/HeidiSQL/HeidiSQL.git
+            git fetch upstream lazarus
+            git push origin FETCH_HEAD:lazarus
 
     release:
         if: contains(github.ref_type, 'tag')
