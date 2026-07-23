@@ -150,20 +150,20 @@ end;
 }
 procedure TfrmColumnSelection.chklistColumnsClickCheck(Sender: TObject);
 var
-  i : Integer;
+  i, CheckedIndex : Integer;
   AllSelected, NoneSelected : Boolean;
-  FocusedItem: String;
-  FocusedItemIndex: Integer;
 begin
-  // Add or remove clicked item from list
-  if chklistColumns.ItemIndex > -1 then begin
-    FocusedItem := chklistColumns.Items[chklistColumns.ItemIndex];
-    if chklistColumns.Checked[chklistColumns.ItemIndex] then begin
-      FCheckedColumns.Add(FocusedItem)
+  // Sync check states of all displayed items into FCheckedColumns. Using
+  // ItemIndex to detect the clicked item would be wrong on macOS, where the
+  // check event fires before the list selection is updated. See issue 2554.
+  for i:=0 to chklistColumns.Items.Count-1 do begin
+    CheckedIndex := FCheckedColumns.IndexOf(chklistColumns.Items[i]);
+    if chklistColumns.Checked[i] then begin
+      if CheckedIndex = -1 then
+        FCheckedColumns.Add(chklistColumns.Items[i]);
     end else begin
-      FocusedItemIndex := FCheckedColumns.IndexOf(FocusedItem);
-      if FocusedItemIndex > -1 then
-        FCheckedColumns.Delete(FocusedItemIndex);
+      if CheckedIndex > -1 then
+        FCheckedColumns.Delete(CheckedIndex);
     end;
   end;
 
